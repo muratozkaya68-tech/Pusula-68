@@ -1,0 +1,372 @@
+
+import http.server
+import socketserver
+
+PORT = 8000
+
+HTML_CONTENT = """<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SİBER PUSULA PRO HUD VIP</title>
+    <style>
+        @keyframes neonPulse {
+            0% { box-shadow: 0 0 25px rgba(0,240,255,0.15), inset 0 0 15px rgba(0,240,255,0.05); }
+            50% { box-shadow: 0 0 50px rgba(0,240,255,0.4), inset 0 0 25px rgba(0,240,255,0.2); border-color: #00f0ff; }
+            100% { box-shadow: 0 0 25px rgba(0,240,255,0.15), inset 0 0 15px rgba(0,240,255,0.05); }
+        }
+        @keyframes qiblaPulse {
+            0% { box-shadow: 0 0 30px rgba(0,255,102,0.3), inset 0 0 20px rgba(0,255,102,0.2); }
+            50% { box-shadow: 0 0 70px rgba(0,255,102,0.8), inset 0 0 40px rgba(0,255,102,0.4); border-color: #00ff66; }
+            100% { box-shadow: 0 0 30px rgba(0,255,102,0.3), inset 0 0 20px rgba(0,255,102,0.2); }
+        }
+        body { background: #030508; color: #ffffff; font-family: 'Segoe UI', Arial, sans-serif; text-align: center; margin: 0; padding: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; box-sizing: border-box; }
+        h1 { color: #00f0ff; font-size: 22px; text-transform: uppercase; letter-spacing: 3px; margin: 0 0 10px 0; text-shadow: 0 0 15px #00f0ff; font-weight: 900; }
+        
+        .btn { margin-bottom: 15px; background: #071524; border: 2px solid #00f0ff; color: #00f0ff; padding: 12px 35px; font-size: 14px; font-weight: bold; border-radius: 30px; cursor: pointer; animation: neonPulse 2s infinite; outline: none; }
+        .btn:active { background: #00f0ff; color: #030508; box-shadow: 0 0 30px #00f0ff; transform: scale(0.95); }
+        
+        /* ŞIK KARE MODÜL KUTUSU */
+        .square-card {
+            width: 360px;
+            height: 360px;
+            background: #060a12;
+            border: 3px solid #142033;
+            border-radius: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.8);
+            animation: neonPulse 3s infinite;
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+        .square-card.aligned {
+            animation: qiblaPulse 1.5s infinite;
+            border-color: #00ff66;
+        }
+
+        /* HUD HEDEF KÖŞELİKLERİ VE ÇİZGİLERİ */
+        .hud-crosshair {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 5;
+        }
+        .hud-line-h {
+            position: absolute;
+            top: 50%;
+            left: 10px;
+            right: 10px;
+            height: 1px;
+            background: rgba(0, 240, 255, 0.15);
+            transform: translateY(-50%);
+        }
+        .hud-line-v {
+            position: absolute;
+            left: 50%;
+            top: 10px;
+            bottom: 10px;
+            width: 1px;
+            background: rgba(0, 240, 255, 0.15);
+            transform: translateX(-50%);
+        }
+        .square-card.aligned .hud-line-h, .square-card.aligned .hud-line-v {
+            background: rgba(0, 255, 102, 0.4);
+            box-shadow: 0 0 8px #00ff66;
+        }
+
+        .hud-corner {
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #00f0ff;
+            opacity: 0.4;
+        }
+        .square-card.aligned .hud-corner {
+            border-color: #00ff66;
+            opacity: 0.9;
+        }
+        .tl { top: 15px; left: 15px; border-right: none; border-bottom: none; }
+        .tr { top: 15px; right: 15px; border-left: none; border-bottom: none; }
+        .bl { bottom: 15px; left: 15px; border-right: none; border-top: none; }
+        .br { bottom: 15px; right: 15px; border-left: none; border-top: none; }
+        
+        /* İÇERİDEKİ KOMPAKT PUSULA DAİRESİ (300px) */
+        .compass-container { 
+            position: relative; 
+            width: 300px; 
+            height: 300px; 
+            border: 2px solid rgba(0,240,255,0.2); 
+            border-radius: 50%; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            background: radial-gradient(circle, #080e18 0%, #030508 100%); 
+            box-sizing: border-box; 
+            z-index: 2;
+        }
+        
+        .compass-dial { 
+            position: absolute; 
+            width: 100%; 
+            height: 100%; 
+            border-radius: 50%; 
+            top: 0; 
+            left: 0; 
+        }                                                                                           
+        
+        /* ÇİZGİ ÇENTİKLERİ */
+        .line-tick {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            background: #00f0ff;
+            opacity: 0.25;
+            transform-origin: center top;
+        }
+        .line-tick.small { width: 1px; height: 6px; margin-left: -0.5px; }
+        .line-tick.medium { width: 2px; height: 10px; margin-left: -1px; opacity: 0.5; }
+        .line-tick.large { width: 2px; height: 14px; margin-left: -1px; opacity: 0.85; background: #00f0ff; }
+
+        /* DERECE RAKAMLARI */
+        .tick { 
+            position: absolute; 
+            top: 50%; 
+            left: 50%; 
+            width: 40px; 
+            height: 20px; 
+            margin-top: -10px; 
+            margin-left: -20px; 
+            text-align: center; 
+            font-weight: 700; 
+            font-family: monospace; 
+            font-size: 12px; 
+            color: #00f0ff; 
+            opacity: 0.45;
+        }
+
+        .tick-0   { transform: rotate(0deg) translate(0, -118px) rotate(0deg); color: #ff3b30; font-size: 15px; font-weight: 900; opacity: 1; text-shadow: 0 0 10px #ff3b30; }
+        .tick-90  { transform: rotate(90deg) translate(0, -118px) rotate(-90deg); color: #ffb800; font-size: 14px; font-weight: 900; opacity: 1; text-shadow: 0 0 10px #ffb800; }
+        .tick-180 { transform: rotate(180deg) translate(0, -118px) rotate(-180deg); color: #ffb800; font-size: 14px; font-weight: 900; opacity: 1; text-shadow: 0 0 10px #ffb800; }
+        .tick-270 { transform: rotate(270deg) translate(0, -118px) rotate(-270deg); color: #ffb800; font-size: 14px; font-weight: 900; opacity: 1; text-shadow: 0 0 10px #ffb800; }
+        .tick-120 { transform: rotate(120deg) translate(0, -118px) rotate(-120deg); color: #00ff66; font-size: 14px; font-weight: 900; opacity: 1; text-shadow: 0 0 10px #00ff66; }
+
+        .tick-30  { transform: rotate(30deg) translate(0, -118px) rotate(-30deg); }
+        .tick-60  { transform: rotate(60deg) translate(0, -118px) rotate(-60deg); }
+        .tick-150 { transform: rotate(150deg) translate(0, -118px) rotate(-150deg); }
+        .tick-210 { transform: rotate(210deg) translate(0, -118px) rotate(-210deg); }
+        .tick-240 { transform: rotate(240deg) translate(0, -118px) rotate(-240deg); }
+        .tick-300 { transform: rotate(300deg) translate(0, -118px) rotate(-300deg); }
+        .tick-330 { transform: rotate(330deg) translate(0, -118px) rotate(-330deg); }
+
+        .arrow { position: absolute; width: 0; height: 0; border-left: 15px solid transparent; border-right: 15px solid transparent; border-bottom: 120px solid #00f0ff; transform-origin: 50% 100%; top: 30px; filter: drop-shadow(0 0 10px #00f0ff); pointer-events: none; }
+        .kaba { position: absolute; font-size: 32px; top: 134px; z-index: 10; filter: drop-shadow(0 0 15px #ffb800); pointer-events: none; }
+        
+        .data-box { background: #070d14; border: 2px solid #1a2433; padding: 12px 20px; border-radius: 16px; width: 320px; box-shadow: 0 10px 30px rgba(0,0,0,0.6); }
+        .data-row { display: flex; justify-content: space-between; margin: 4px 0; font-size: 14px; border-bottom: 1px dashed #1a2433; padding-bottom: 4px; font-weight: bold; }
+        .data-row:last-child { border: none; margin-bottom: 0; padding-bottom: 0; }
+        .label { color: #5c6f88; }
+        .value { font-weight: bold; color: #ffb800; font-family: monospace; font-size: 16px; }
+        .status { margin-top: 12px; font-size: 16px; font-weight: bold; color: #ff3b30; text-transform: uppercase; letter-spacing: 2px; min-height: 24px; text-shadow: 0 0 8px rgba(255,59,48,0.4); }
+        .status.aligned { color: #00ff66; text-shadow: 0 0 12px rgba(0,255,102,0.85); }
+    </style>
+</head>
+<body>
+    <h1>SİBER PUSULA PRO HUD</h1>
+    <button class="btn" id="mainBtn" onclick="aktivite()">SİSTEMİ ATEŞLE</button>
+    
+    <!-- KARE DIŞ PANEL -->
+    <div class="square-card" id="mainCard">
+        <!-- ASKERİ HUD KATMANI -->
+        <div class="hud-crosshair">
+            <div class="hud-line-h"></div>
+            <div class="hud-line-v"></div>
+            <div class="hud-corner tl"></div>
+            <div class="hud-corner tr"></div>
+            <div class="hud-corner bl"></div>
+            <div class="hud-corner br"></div>
+        </div>
+
+        <!-- İÇERİDEKİ DERECE DAİRESİ -->
+        <div class="compass-container">
+            <div class="compass-dial" id="dial">
+                <div id="linesContainer"></div>
+
+                <div class="tick tick-0">0 K</div>
+                <div class="tick tick-30">30</div>
+                <div class="tick tick-60">60</div>
+                <div class="tick tick-90">90 D</div>
+                <div class="tick tick-120">120</div>
+                <div class="tick tick-150">150</div>
+                <div class="tick tick-180">180 G</div>
+                <div class="tick tick-210">210</div>
+                <div class="tick tick-240">240</div>
+                <div class="tick tick-270">270 B</div>
+                <div class="tick tick-300">300</div>
+                <div class="tick tick-330">330</div>
+            </div>
+            <div class="arrow"></div>
+            <div class="kaba">🕋</div>
+        </div>
+    </div>
+
+    <div class="data-box">
+        <div class="data-row"><span class="label">TELEFON AÇISI:</span><span class="value" id="telAngle">0°</span></div>
+        <div class="data-row"><span class="label">KIBLE AÇISI:</span><span class="value" style="color: #00ff66; text-shadow: 0 0 8px #00ff66;">119°</span></div>
+    </div>
+    <div class="status" id="status">KIBLEYE UZAKSINIZ</div>
+
+    <script>
+        const linesContainer = document.getElementById('linesContainer');
+        for (let i = 0; i < 360; i += 5) {
+            const line = document.createElement('div');
+            let lineType = 'small';
+            if (i % 30 === 0) {
+                lineType = 'large';
+            } else if (i % 10 === 0) {
+                lineType = 'medium';
+            }
+            line.className = `line-tick ${lineType}`;
+            line.style.transform = `rotate(${i}deg) translate(0, -140px)`;
+            linesContainer.appendChild(line);
+        }
+
+        let rawAngle = 0;
+        let smoothedAngle = 0;
+        const kibleAngle = 119;
+        let sesIzni = false;
+        let lastSoundTime = 0;
+
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        function playRelaxingLockSound() {
+            if (!sesIzni) return;
+            let simdi = Date.now();
+            if (simdi - lastSoundTime < 2200) return;
+            lastSoundTime = simdi;
+
+            // DOKUNSAL TİTREŞİM (Haptic Feedback)
+            if (navigator.vibrate) {
+                navigator.vibrate(150);
+            }
+
+            const now = audioCtx.currentTime;
+            const freqs = [349.23, 523.25];
+            freqs.forEach((f, idx) => {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(f, now);
+                
+                gain.gain.setValueAtTime(0, now);
+                gain.gain.linearRampToValueAtTime(0.18 / (idx + 1), now + 0.08);
+                gain.gain.exponentialRampToValueAtTime(0.0001, now + 1.2);
+
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                osc.start(now);
+                osc.stop(now + 1.25);
+            });
+        }
+
+        function aktivite() {
+            sesIzni = true;
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            document.getElementById('mainBtn').innerText = "SİSTEM AKTİF";
+            document.getElementById('mainBtn').style.borderColor = "#00ff66";
+            document.getElementById('mainBtn').style.color = "#00ff66";
+            document.getElementById('mainBtn').style.boxShadow = "0 0 20px rgba(0,255,102,0.3)";
+
+            if (window.DeviceOrientationEvent) {
+                if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+                    DeviceOrientationEvent.requestPermission()
+                        .then(permissionState => {
+                            if (permissionState === 'granted') {
+                                window.addEventListener('deviceorientation', handleOrientation, true);
+                            }
+                        })
+                        .catch(console.error);
+                } else {
+                    window.addEventListener('deviceorientation', handleOrientation, true);
+                }
+            }
+            requestAnimationFrame(animateCompass);
+        }
+
+        function handleOrientation(event) {
+            if(event.alpha !== null) {
+                rawAngle = Math.round(event.webkitCompassHeading ? event.webkitCompassHeading : 360 - event.alpha);
+            }
+        }
+
+        // AKICI VE YUMUŞATILMIŞ DÖNÜŞ (Low-pass Filter Animation Loop)
+        function animateCompass() {
+            let diff = rawAngle - smoothedAngle;
+            if (diff > 180) diff -= 360;
+            if (diff < -180) diff += 360;
+
+            smoothedAngle += diff * 0.15; // 0.15 katsayısı kaymak gibi yumuşatır
+            if (smoothedAngle < 0) smoothedAngle += 360;
+            if (smoothedAngle >= 360) smoothedAngle -= 360;
+
+            guncelle(smoothedAngle);
+            requestAnimationFrame(animateCompass);
+        }
+
+        function guncelle(angle) {
+            let displayAngle = Math.round(angle);
+            document.getElementById('telAngle').innerText = displayAngle + '°';
+            document.getElementById('dial').style.transform = `rotate(${-angle}deg)`;
+
+            let diff = (kibleAngle - angle + 360) % 360;
+            let kontrolDiff = diff;
+            if (kontrolDiff > 180) kontrolDiff = 360 - kontrolDiff;
+
+            const statusEl = document.getElementById('status');
+            const cardEl = document.getElementById('mainCard');
+
+            if (kontrolDiff <= 5) {
+                statusEl.innerText = "KIBLE HİZALANDI!";
+                statusEl.classList.add('aligned');
+                cardEl.classList.add('aligned');
+                playRelaxingLockSound();
+            } else {
+                statusEl.innerText = "KIBLEYE UZAKSINIZ";
+                statusEl.classList.remove('aligned');
+                cardEl.classList.remove('aligned');
+            }
+        }
+    </script>
+</body>
+</html>
+"""
+
+html_bytes = HTML_CONTENT.encode('utf-8')
+
+class SimpleHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(html_bytes)))
+        self.end_headers()
+        self.wfile.write(html_bytes)
+
+if __name__ == "__main__":
+    socketserver.TCPServer.allow_reuse_address = True
+    try:
+        with socketserver.TCPServer(("", PORT), SimpleHTTPRequestHandler) as httpd:
+            print(f"Sunucu aktif: http://localhost:{PORT}")
+            httpd.serve_forever()
+    except OSError:
+        PORT = 8080
+        with socketserver.TCPServer(("", PORT), SimpleHTTPRequestHandler) as httpd:
+            print(f"8000 meşguldü, sunucu 8080'de açıldı: http://localhost:{PORT}")
+            httpd.serve_forever()
